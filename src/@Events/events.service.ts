@@ -13,51 +13,59 @@ export class EventsService {
     private readonly registrationRepository: Repository<EventRegistration>,
   ) {}
 
-  async findAll(){
-    const events = await this.eventRepository.find({
-      relations: ['registrations'],
-    });
-    return this.enrichWithAvailability(events);
+  async findAll() {
+  return this.getEventsWithStats();
+}
+ async findOne(id: number) {
+  const result = await this.getEventsWithStats(id);
+  return result[0] ?? null;
+}
+private async getEventsWithStats(eventId?: number) {
+  const qb = this.eventRepository
+    .createQueryBuilder('event')
+    .leftJoin('event.registrations', 'registration')
+    .addSelect(
+      `COUNT(CASE WHEN registration.status = :status THEN 1 END)`,
+      'registered'
+    )
+    .setParameter('status', RegistrationStatus.REGISTERED)
+    .groupBy('event.id');
+
+  if (eventId) {
+    qb.where('event.id = :id', { id: eventId });
   }
 
-  async findOne(id: number){
-    const event = await this.eventRepository.findOne({
-      where: { id },
-      relations: ['registrations'],
-    });
-    if (!event) return null;
-    return this.enrichWithAvailability([event])[0];
-  }
+  const events = await qb.getMany();
+  const raw = await qb.getRawMany();
 
-  private enrichWithAvailability(events: Event[]) {
-    return events.map((event) => {
-      const registered = event.registrations?.filter(
-        (r) => r.status === RegistrationStatus.REGISTERED
-      ).length || 0;
-      const available = Math.max(0, (event.limit || 0) - registered);
-      const occupancyPercent = event.limit
-        ? Math.round((registered / event.limit) * 100)
-        : 0;
+  return events.map((event: any, i) => {
+    const registered = Number(raw[i]?.registered ?? 0);
+    const limit = event.limit ?? 0;
 
-      return {
-        ...event,
-        available,
-        occupancyPercent,
-        registered,
-      };
-    });
-  }
+    return {
+      ...event,
+      registered,
+      available: Math.max(0, limit - registered),
+      occupancyPercent: limit ? Math.round((registered / limit) * 100) : 0,
+    };
+  });
+}
 
-  async search(query?: string): Promise<any[]> {
+  async search(query?: string) {
     const qb = this.eventRepository.createQueryBuilder('event')
-      .leftJoinAndSelect('event.registrations', 'registrations');
+      .leftJoinAndSelect('event.registrations', 'registrations')
+      .distinct(true);
 
-    if (!this.hasQuery(query)) {
-      const events = await this.getDefaultList(qb);
+    if (!query?.trim()) {
+      const events = await qb
+        .orderBy('event.dateStart', 'DESC')
+        .limit(50)
+        .getMany();
+
       return this.enrichWithAvailability(events);
     }
 
-    const terms = this.normalizeQuery(query!);
+    const terms = this.normalizeQuery(query);
 
     this.applySearch(qb, terms);
 
@@ -69,48 +77,61 @@ export class EventsService {
     return this.enrichWithAvailability(events);
   }
 
-  private applySearch(qb, terms: string[]) {
-  const fields: (keyof Event)[] = [
-    'name',
-    'description',
-    'location',
-    'adress',
-    'category',
-  ];
+  private applySearch(qb: SelectQueryBuilder<Event>, terms: string[]) {
+    const fields: (keyof Event)[] = [
+      'name',
+      'description',
+      'location',
+      'adress',
+      'category',
+    ];
 
-  terms.forEach((term, index) => {
-    const param = { [`t${index}`]: `%${term}%` };
+    terms.forEach((term, index) => {
+      const paramKey = `t${index}`;
+      const paramValue = `%${term.toLowerCase()}%`;
 
-    const orConditions = fields.map(
-      (field) => `LOWER(event.${field}) LIKE :t${index}`
-    );
+      const orConditions = fields.map(
+        (field) => `LOWER(event.${field}) LIKE :${paramKey}`
+      );
 
-    const condition = `(${orConditions.join(' OR ')})`;
+      const condition = `(${orConditions.join(' OR ')})`;
 
-    if (index === 0) {
-      qb.where(condition, param);
-    } else {
-      qb.andWhere(condition, param);
-    }
-  });
-}
-
-  private hasQuery(query?: string): boolean {
-    return !!query?.trim();
+      if (index === 0) {
+        qb.where(condition, { [paramKey]: paramValue });
+      } else {
+        qb.andWhere(condition, { [paramKey]: paramValue });
+      }
+    });
   }
 
   private normalizeQuery(query: string): string[] {
     return query
       .trim()
       .toLowerCase()
-      .split(' ')
+      .split(/\s+/)
       .filter(Boolean);
   }
 
-  private getDefaultList(qb: SelectQueryBuilder<Event>): Promise<Event[]> {
-    return qb
-      .orderBy('event.dateStart', 'DESC')
-      .limit(50)
-      .getMany();
+  private enrichWithAvailability(events: Event[]) {
+    return events.map((event) => {
+      const registered = event.registrations?.filter(
+        (r) => r.status === RegistrationStatus.REGISTERED
+      ).length ?? 0;
+
+      const limit = event.limit ?? null;
+
+      const available =
+        limit !== null ? Math.max(0, limit - registered) : null;
+
+      const occupancyPercent =
+        limit ? Math.round((registered / limit) * 100) : 0;
+
+      return {
+        ...event,
+        registered,
+        available,
+        occupancyPercent,
+      };
+    });
   }
 }
