@@ -10,9 +10,9 @@ import { User } from './user.entities';
 import { Event } from './event.entities';
 
 export enum RegistrationStatus {
-  REGISTERED = 'registered',
-  CANCELLED = 'cancelled',
-  WAITLIST = 'waitlist',
+  REGISTERED = 'REGISTERED',
+  CANCELLED = 'CANCELLED',
+  FAVORITES = 'FAVORITES',
 }
 
 @Entity('event_reservation')
@@ -24,7 +24,9 @@ export class EventRegistration {
   @JoinColumn({ name: 'user_id' })
   user!: User;
 
-  @ManyToOne(() => Event, (event) => event.registrations, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Event, (event) => event.registrations, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'event_id' })
   event!: Event;
 

@@ -1,7 +1,10 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { EventRegistration, RegistrationStatus } from 'src/entities/reservations.entities';
+import {
+  EventRegistration,
+  RegistrationStatus,
+} from 'src/entities/reservations.entities';
 import { Event } from 'src/entities/event.entities';
 import { User } from 'src/entities/user.entities';
 
@@ -35,7 +38,11 @@ export class ReservationsService {
 
     // Sprawdź czy user już się zapisał
     const existingReg = await this.registrationRepository.findOne({
-      where: { event: { id: eventId }, user: { id: userId } },
+      where: { 
+        event: { id: eventId }, 
+        user: { id: userId },
+        status: RegistrationStatus.REGISTERED,
+      },
     });
 
     if (existingReg) {
@@ -111,5 +118,99 @@ export class ReservationsService {
       available: Math.max(0, available),
       occupancyPercent,
     };
+  }
+
+  async addToFavorites(eventId: number, userId: number) {
+    // Sprawdź czy event istnieje
+    const event = await this.eventRepository.findOne({
+      where: { id: eventId },
+    });
+
+    if (!event) {
+      throw new BadRequestException('Event not found');
+    }
+
+    // Sprawdź czy user istnieje
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Sprawdź czy już jest w ulubionych
+    const existingFavorite = await this.registrationRepository.findOne({
+      where: {
+        event: { id: eventId },
+        user: { id: userId },
+        status: RegistrationStatus.FAVORITES,
+      },
+    });
+
+    if (existingFavorite) {
+      throw new BadRequestException('Event already in favorites');
+    }
+
+    // Dodaj do ulubionych
+    const favorite = this.registrationRepository.create({
+      event,
+      user,
+      status: RegistrationStatus.FAVORITES,
+    });
+
+    return this.registrationRepository.save(favorite);
+  }
+
+  async removeFromFavorites(eventId: number, userId: number) {
+    const favorite = await this.registrationRepository.findOne({
+      where: {
+        event: { id: eventId },
+        user: { id: userId },
+        status: RegistrationStatus.FAVORITES,
+      },
+    });
+
+    if (!favorite) {
+      throw new BadRequestException('Event not in favorites');
+    }
+
+    return this.registrationRepository.remove(favorite);
+  }
+
+  async getUserFavorites(userId: number) {
+    // Sprawdź czy user istnieje
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const favorites = await this.registrationRepository.find({
+      where: {
+        user: { id: userId },
+        status: RegistrationStatus.FAVORITES,
+      },
+      relations: ['event'],
+    });
+
+    return favorites.map((fav) => fav.event);
+  }
+
+  async getUserReservations(userId: number) {
+    // Sprawdź czy user istnieje
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    const reservations = await this.registrationRepository.find({
+      where: {
+        user: { id: userId },
+        status: RegistrationStatus.REGISTERED,
+      },
+      relations: ['event'],
+    });
+
+    return reservations.map((res) => ({
+      ...res,
+      event: res.event,
+    }));
   }
 }

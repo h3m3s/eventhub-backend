@@ -1,31 +1,47 @@
-import { Controller, Post, Delete, Get, Param, Body, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Delete,
+  Get,
+  Param,
+  Body,
+  UseGuards,
+  Request,
+  Put,
+} from '@nestjs/common';
 import { ReservationsService } from './reservations.service';
+import { JwtAuthGuard } from 'src/@Auth/jwt-auth.guard';
 
 @Controller('reservations')
 export class ReservationsController {
   constructor(private readonly reservationsService: ReservationsService) {}
 
   @Post()
-  async createReservation(@Body() body: { eventId: number; userId: number }) {
+  @UseGuards(JwtAuthGuard)
+  async createReservation(@Body() body: any, @Request() req: any) {
+    const eventId = body.eventId || body.event_id;
     return this.reservationsService.createReservation(
-      body.eventId,
-      body.userId
-    );
-  }
-
-  @Delete(':eventId/:userId')
-  async cancelReservation(
-    @Param('eventId') eventId: string,
-    @Param('userId') userId: string,
-  ) {
-    return this.reservationsService.cancelReservation(
-      parseInt(eventId),
-      parseInt(userId)
+      eventId,
+      req.user.id,
     );
   }
 
   @Get('stats/:eventId')
-  async getEventStats(@Param('eventId') eventId: string) {
-    return this.reservationsService.getEventStats(parseInt(eventId));
+  async getEventStats(@Param('eventId') eventId: number) {
+    return this.reservationsService.getEventStats(eventId);
+  }
+  @Put('cancel/:eventId')
+  @UseGuards(JwtAuthGuard)
+  async cancelReservation(@Param('eventId') eventId: number, @Request() req: any,) {
+    return this.reservationsService.cancelReservation(
+      eventId,
+      req.user.id,
+    );
+  }
+
+  @Get('my-reservations')
+  @UseGuards(JwtAuthGuard)
+  async getMyReservations(@Request() req: any) {
+    return this.reservationsService.getUserReservations(req.user.id);
   }
 }

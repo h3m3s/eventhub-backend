@@ -1,9 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, OneToMany } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  OneToMany,
+} from 'typeorm';
 import { EventRegistration } from './reservations.entities';
 
 @Entity('events')
 export class Event {
- @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn()
   id!: number;
 
   @Column({ type: 'varchar', length: 255 })
@@ -12,10 +18,10 @@ export class Event {
   @Column({ type: 'text', nullable: true })
   description!: string;
 
-  @Column({  name: 'date_start', type: 'datetime' })
+  @Column({ name: 'date_start', type: 'datetime' })
   dateStart!: Date;
 
-  @Column({  name: 'date_end', type: 'datetime' })
+  @Column({ name: 'date_end', type: 'datetime' })
   dateEnd!: Date;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -36,7 +42,7 @@ export class Event {
   @Column({ name: 'photo_path', type: 'varchar', length: 255, nullable: true })
   photoPath!: string;
 
-  @CreateDateColumn({  name: 'created_at', type: 'datetime' })
+  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
   createdAt!: Date;
 
   @OneToMany(() => EventRegistration, (reg) => reg.event)

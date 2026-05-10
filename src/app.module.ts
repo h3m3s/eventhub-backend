@@ -3,19 +3,24 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventsModule } from './@Events/events.module';
+import { AuthModule } from './@Auth/auth.module';
+import { ReservationsModule } from './@Reservations/reservations.module';
+
 @Module({
   imports: [
-     TypeOrmModule.forRoot({
-     type: 'mysql',
-     host: 'localhost',
-     port: 3306,
-     username: 'root',
-     password: '',
-     database: 'eventhub',
-     entities: [__dirname + '/**/*.entities{.ts,.js}'],
-     autoLoadEntities: true,
+    TypeOrmModule.forRoot({
+      type: 'mysql',
+      host: 'localhost',
+      port: 3306,
+      username: 'root',
+      password: '',
+      database: 'eventhub',
+      entities: [__dirname + '/**/*.entities{.ts,.js}'],
+      autoLoadEntities: true,
     }),
-    EventsModule
+    EventsModule,
+    AuthModule,
+    ReservationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
